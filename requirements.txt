@@ -1,0 +1,9 @@
+langchain
+faiss-cpu
+streamlit
+google-generativeai
+langchain-google-genai
+pypdf
+PyPDF2
+gTTS
+pymongo
