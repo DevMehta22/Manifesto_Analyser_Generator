@@ -1,12 +1,12 @@
 # build_faiss_vectorstores.py
 
 import os
-from langchain.document_loaders import PyPDFLoader
-from langchain.vectorstores import FAISS
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings 
 
 # ⚠️ Keep your API key in .env later, for now it's hardcoded
-GEMINI_API_KEY = "AIzaSyAbYSZiclAZbshAznnMK7C2TrmWzxHnnYg"  
+# GEMINI_API_KEY = "AIzaSyAbYSZiclAZbshAznnMK7C2TrmWzxHnnYg"  
 
 def build_vectorstore(input_dir, output_dir):
     print(f"📁 Processing folder: {input_dir}")
@@ -18,9 +18,8 @@ def build_vectorstore(input_dir, output_dir):
         print("❌ No PDF files found in the directory.")
         return
 
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
-        google_api_key=GEMINI_API_KEY
+    embeddings = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
 
     chunk_size = 20  # Process in batches
@@ -73,5 +72,5 @@ def build_vectorstore(input_dir, output_dir):
 
 
 if __name__ == "__main__":
-    os.makedirs("vectorstores", exist_ok=True)  # ensure parent exists
-    build_vectorstore("data", "vectorstores/acts")
+    os.makedirs("vectorstores_1.0", exist_ok=True)  # ensure parent exists
+    build_vectorstore("data", "vectorstores_1.0/acts")
