@@ -17,7 +17,10 @@ from pymongo import MongoClient
 from langchain.schema import Document
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
-
+from langchain.schema.retriever import BaseRetriever
+from typing import Callable, Any, List
+from langchain.schema import Document
+from pydantic import Field
 # --------------------------- Page Config ---------------------------
 st.set_page_config(page_title="Manifesto Analyzer", page_icon="📜")
 
@@ -115,6 +118,22 @@ def adjust_scores_with_feedback(query, retrieved_docs):
     # Re-rank based on adjusted scores
     return sorted(retrieved_docs, key=lambda x: x.metadata.get('relevance_score', 1.0), reverse=True)
 
+class FeedbackAdjustedRetriever(BaseRetriever):
+    """Retriever wrapper that adjusts document scores using stored feedback before returning results."""
+
+    base_retriever: BaseRetriever = Field(...)
+    feedback_func: Callable[[str, List[Document]], List[Document]] = Field(...)
+
+    def get_relevant_documents(self, query: str) -> List[Document]:
+        docs = self.base_retriever.get_relevant_documents(query)
+        adjusted_docs = self.feedback_func(query, docs)
+        return adjusted_docs
+
+    async def aget_relevant_documents(self, query: str) -> List[Document]:
+        docs = await self.base_retriever.aget_relevant_documents(query)
+        adjusted_docs = self.feedback_func(query, docs)
+        return adjusted_docs
+
 # --------------------------- Sidebar ---------------------------
 with st.sidebar:
     st.title("📜 Manifesto Analyzer")
@@ -149,11 +168,16 @@ st.title("📜 Manifesto Analyzer – Your Political AI Assistant")
 # Retriever logic
 if selected_manifesto == "All Manifestos":
     st.caption("📘 Chatting using all manifestos")
-    retriever = all_manifestos_store.as_retriever(search_kwargs={"k": 3})
+    base_retriever = all_manifestos_store.as_retriever(search_kwargs={"k": 5})
 else:
     st.caption(f"🎓 Chatting about: `{selected_manifesto}`")
-    retriever = create_manifesto_vector(selected_manifesto).as_retriever(search_kwargs={"k": 3})
+    base_retriever = create_manifesto_vector(selected_manifesto).as_retriever(search_kwargs={"k": 5})
 
+# ✅ Wrap retriever with feedback adjustment layer
+retriever = FeedbackAdjustedRetriever(
+    base_retriever=base_retriever,
+    feedback_func=adjust_scores_with_feedback
+)
 # --------------------------- Memory + LLM ---------------------------
 memory = ConversationBufferMemory(memory_key="chat_history", output_key="answer", return_messages=True)
 
@@ -165,6 +189,7 @@ chat_model = ChatGoogleGenerativeAI(
     convert_system_message_to_human=True
 )
 
+# ✅ ConversationalRetrievalChain with feedback-adjusted retriever
 retrieval_chain = ConversationalRetrievalChain.from_llm(
     llm=chat_model,
     retriever=retriever,
@@ -205,47 +230,37 @@ if st.session_state.messages and st.session_state.messages[-1]["role"] != "assis
         with st.spinner("🧠 Analyzing manifestos..."):
             try:
                 question = st.session_state.messages[-1]["content"]
-                # response = retrieval_chain({
-                #     "question": question,
-                #     "chat_history": [
-                #         (msg["role"], msg["content"])
-                #         for msg in st.session_state.messages
-                #         if msg["role"] != "assistant"
-                #     ]
-                # })
 
-                # answer = response['answer']
-                
-                 # ------------------ Step 1: Retrieve documents ------------------
-                docs = retriever.get_relevant_documents(question)
+                # ✅ Use the feedback-adjusted retrieval chain directly
+                response = retrieval_chain({
+                    "question": question,
+                    "chat_history": [
+                        (msg["role"], msg["content"])
+                        for msg in st.session_state.messages
+                        if msg["role"] != "assistant"
+                    ]
+                })
 
-                # ------------------ Step 2: Apply feedback re-ranking ------------------
-                docs = adjust_scores_with_feedback(question, docs)[:3]  # top 3 optimized docs
+                answer = response["answer"]
+                source_docs = response.get("source_documents", [])
 
-                # ------------------ Step 3: Generate response with top documents ------------------
-                context = "\n\n".join([d.page_content for d in docs])
-                response = chat_model.invoke(prompt.format(context=context, question=question))
-                answer = response.content
-                
                 st.write(answer)
-                # ------------------ Step 4: Display and save ------------------
-                st.write(answer)
-                save_chat_log(question, answer, docs, selected_manifesto)
+                save_chat_log(question, answer, source_docs, selected_manifesto)
                 st.session_state.messages.append({"role": "assistant", "content": answer})
 
-                # ------------------ Step 5: Source documents expander ------------------
-                if docs:
+                # ✅ Show retrieved source documents
+                if source_docs:
                     with st.expander("📚 View Source Sections"):
-                        for i, doc in enumerate(docs):
+                        for i, doc in enumerate(source_docs):
                             st.write(f"📄 Section {i + 1}:")
-                            st.write(doc)
+                            st.write(doc.page_content[:1000])  # Limit text length for clarity
                             st.write("---")
 
-                # Store last response and question in session_state for feedback
+                # ✅ Store for feedback expander
                 st.session_state["last_question"] = question
                 st.session_state["last_answer"] = answer
-                st.session_state["last_response_docs"] = docs
-                            
+                st.session_state["last_response_docs"] = source_docs
+
             except Exception as e:
                 st.error(f"⚠️ Error generating response: {str(e)}")
                 st.exception(e)
