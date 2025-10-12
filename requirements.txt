@@ -13,3 +13,4 @@ edge-tts
 scikit-learn
 sentence_transformers
 pydantic
+hf_xet

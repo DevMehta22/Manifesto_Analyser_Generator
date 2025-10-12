@@ -55,7 +55,7 @@ GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 @st.cache_resource(show_spinner=True)
 def load_vectorstore_from_disk(folder_path):
     embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
+        model_name="sentence-transformers/all-mpnet-base-v2"
     )
     return FAISS.load_local(
         folder_path,
@@ -86,12 +86,12 @@ def create_manifesto_vector(pdf_filename):
     manifesto_text = extract_text_from_pdf(pdf_path)
     manifesto_doc = Document(page_content=manifesto_text)
     embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
+        model_name="sentence-transformers/all-mpnet-base-v2"
     )
     return FAISS.from_documents([manifesto_doc], embeddings)
 
 # --------------------------- Feedback Score Helper -------------
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+embedding_model = SentenceTransformer("all-mpnet-base-v2")
 
 def adjust_scores_with_feedback(query, retrieved_docs):
     feedback_data = load_historical_feedback()
