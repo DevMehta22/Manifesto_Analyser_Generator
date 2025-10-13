@@ -1,4 +1,5 @@
 langchain
+langchain_community
 faiss-cpu
 streamlit
 google-generativeai
@@ -9,3 +10,8 @@ gTTS
 pymongo
 langchain-community
 edge-tts
+scikit-learn
+sentence_transformers
+pydantic
+hf_xet
+plotly
