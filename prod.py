@@ -53,17 +53,17 @@ GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 # --------------------------- Load Vector Store ---------------------------
 @st.cache_resource(show_spinner=True)
-def load_vectorstore_from_disk(folder_path):
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-mpnet-base-v2"
-    )
-    return FAISS.load_local(
-        folder_path,
-        embeddings,
-        allow_dangerous_deserialization=True
-    )
+# def load_vectorstore_from_disk(folder_path):
+#     embeddings = HuggingFaceEmbeddings(
+#         model_name="sentence-transformers/all-mpnet-base-v2"
+#     )
+#     return FAISS.load_local(
+#         folder_path,
+#         embeddings,
+#         allow_dangerous_deserialization=True
+#     )
 
-all_manifestos_store = load_vectorstore_from_disk("vectorstores_1.0/acts")
+# all_manifestos_store = load_vectorstore_from_disk("vectorstores_1.0/acts")
 
 
 #---------------------------- Load Feedback collection--------------
@@ -145,7 +145,15 @@ with st.sidebar:
     st.markdown("---")
 
     manifestos = [f for f in os.listdir("data") if f.lower().endswith(".pdf")]
-    selected_manifesto = st.selectbox("📚 Choose a Manifesto", ["All Manifestos"] + manifestos)
+    selected_manifesto = st.selectbox("📚 Choose a Manifesto", manifestos)
+    
+    # 🧹 Clear session state when a new manifesto is selected
+    if "last_selected_manifesto" not in st.session_state:
+        st.session_state.last_selected_manifesto = selected_manifesto
+    elif st.session_state.last_selected_manifesto != selected_manifesto:
+        st.session_state.clear()  # Clears entire session state safely
+        st.session_state.last_selected_manifesto = selected_manifesto
+        st.rerun()  # Force Streamlit to reload everything fresh
 
     if "messages" in st.session_state:
         if 'last_selected_manifesto' not in st.session_state:
@@ -159,19 +167,19 @@ with st.sidebar:
     temperature = st.slider("🔥 Response Creativity", 0.0, 1.0, 0.7, 0.1)
 
     st.markdown("---")
-    st.info("Crafted with ❤️ by Dhyan Shah")
+    st.info("Crafted with ❤️ by Dev Mehta & Dhyan Shah")
     st.caption("Manifesto Analyzer v1.0 | Democracy Meets AI ✨")
 
 # --------------------------- Main Header ---------------------------
 st.title("📜 Manifesto Analyzer – Your Political AI Assistant")
 
 # Retriever logic
-if selected_manifesto == "All Manifestos":
-    st.caption("📘 Chatting using all manifestos")
-    base_retriever = all_manifestos_store.as_retriever(search_kwargs={"k": 5})
-else:
-    st.caption(f"🎓 Chatting about: `{selected_manifesto}`")
-    base_retriever = create_manifesto_vector(selected_manifesto).as_retriever(search_kwargs={"k": 5})
+# if selected_manifesto == "All Manifestos":
+#     st.caption("📘 Chatting using all manifestos")
+#     base_retriever = all_manifestos_store.as_retriever(search_kwargs={"k": 5})
+# else:
+st.caption(f"🎓 Chatting about: `{selected_manifesto}`")
+base_retriever = create_manifesto_vector(selected_manifesto).as_retriever(search_kwargs={"k": 5})
 
 # ✅ Wrap retriever with feedback adjustment layer
 retriever = FeedbackAdjustedRetriever(
